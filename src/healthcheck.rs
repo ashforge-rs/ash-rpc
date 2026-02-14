@@ -3,7 +3,7 @@
 //! Provides a standard health check method that can be used to monitor
 //! service availability and health status.
 
-use crate::*;
+use crate::{JsonRPCMethod, RequestId, Response, error_codes, rpc_error, rpc_success};
 use serde::{Deserialize, Serialize};
 
 /// Health check response structure
@@ -26,9 +26,10 @@ pub struct HealthcheckMethod {
 
 impl HealthcheckMethod {
     /// Create a new healthcheck method with default service name
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            service_name: "ash-rpc-service".to_string(),
+            service_name: "ash-rpc-service".to_owned(),
             version: None,
         }
     }
@@ -42,12 +43,14 @@ impl HealthcheckMethod {
     }
 
     /// Set the service name (builder pattern)
+    #[must_use]
     pub fn service_name(mut self, service_name: impl Into<String>) -> Self {
         self.service_name = service_name.into();
         self
     }
 
     /// Set the service version
+    #[must_use]
     pub fn with_version(mut self, version: impl Into<String>) -> Self {
         self.version = Some(version.into());
         self
@@ -68,7 +71,7 @@ impl JsonRPCMethod for HealthcheckMethod {
 
     async fn call(&self, _params: Option<serde_json::Value>, id: Option<RequestId>) -> Response {
         let health_status = HealthStatus {
-            status: "healthy".to_string(),
+            status: "healthy".to_owned(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -89,6 +92,7 @@ impl JsonRPCMethod for HealthcheckMethod {
 }
 
 /// Convenience function to create a healthcheck method
+#[must_use]
 pub fn healthcheck() -> HealthcheckMethod {
     HealthcheckMethod::new()
 }

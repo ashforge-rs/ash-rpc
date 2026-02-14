@@ -22,6 +22,9 @@ pub struct TlsConfig {
 
 impl TlsConfig {
     /// Create TLS config from PEM files
+    ///
+    /// # Errors
+    /// Returns error if file reading or parsing fails
     pub fn from_pem_files(
         cert_path: impl AsRef<Path>,
         key_path: impl AsRef<Path>,
@@ -47,6 +50,9 @@ impl TlsConfig {
     }
 
     /// Create TLS config from PEM bytes
+    ///
+    /// # Errors
+    /// Returns error if parsing fails or no keys found
     pub fn from_pem_bytes(
         cert_pem: &[u8],
         key_pem: &[u8],
@@ -86,6 +92,7 @@ impl TcpStreamTlsServerBuilder {
         }
     }
 
+    #[must_use]
     pub fn processor<P>(mut self, processor: P) -> Self
     where
         P: MessageProcessor + Send + Sync + 'static,
@@ -94,31 +101,40 @@ impl TcpStreamTlsServerBuilder {
         self
     }
 
+    #[must_use]
     pub fn tls_config(mut self, config: TlsConfig) -> Self {
         self.tls_config = Some(config);
         self
     }
 
+    #[must_use]
     pub fn security_config(mut self, config: SecurityConfig) -> Self {
         self.security_config = config;
         self
     }
 
+    #[must_use]
     pub fn max_connections(mut self, max: usize) -> Self {
         self.security_config.max_connections = max;
         self
     }
 
+    #[must_use]
     pub fn max_request_size(mut self, size: usize) -> Self {
         self.security_config.max_request_size = size;
         self
     }
 
+    #[must_use]
     pub fn request_timeout(mut self, timeout: std::time::Duration) -> Self {
         self.security_config.request_timeout = timeout;
         self
     }
 
+    /// Build the TLS streaming server
+    ///
+    /// # Errors
+    /// Returns error if processor or TLS config is not set
     pub fn build(self) -> Result<TcpStreamTlsServer, std::io::Error> {
         let processor = self.processor.ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "Processor not set")
@@ -151,6 +167,11 @@ impl TcpStreamTlsServer {
         TcpStreamTlsServerBuilder::new(addr)
     }
 
+    /// Run the TLS streaming server
+    ///
+    /// # Errors
+    /// Returns error if server startup or client handling fails
+    #[allow(clippy::cognitive_complexity)]
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind(&self.addr).await?;
         tracing::info!(
@@ -181,7 +202,8 @@ impl TcpStreamTlsServer {
             }
 
             self.active_connections.fetch_add(1, Ordering::Relaxed);
-            tracing::debug!(remote_addr = %addr, protocol = "tls", active_connections = current_connections + 1, "new connection");
+            let new_count = current_connections.saturating_add(1);
+            tracing::debug!(remote_addr = %addr, protocol = "tls", active_connections = new_count, "new connection");
 
             let processor = Arc::clone(&self.processor);
             let acceptor = self.tls_config.acceptor.clone();
@@ -209,6 +231,7 @@ impl TcpStreamTlsServer {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 async fn handle_tls_client<S>(
     stream: S,
     processor: Arc<dyn MessageProcessor + Send + Sync>,
@@ -217,13 +240,12 @@ async fn handle_tls_client<S>(
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
-    let (reader, writer) = tokio::io::split(stream);
-    let mut reader = TokioBufReader::new(reader);
+    let (reader, mut writer) = tokio::io::split(stream);
+    let mut buf_reader = TokioBufReader::new(reader);
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
 
     // Writer task
     tokio::spawn(async move {
-        let mut writer = writer;
         while let Some(response) = rx.recv().await {
             if writer.write_all(response.as_bytes()).await.is_err()
                 || writer.write_all(b"\n").await.is_err()
@@ -240,17 +262,18 @@ where
         line.clear();
 
         // Apply idle timeout
-        let read_result =
-            match timeout(security_config.idle_timeout, reader.read_line(&mut line)).await {
-                Ok(result) => result,
-                Err(_) => {
-                    tracing::debug!("connection idle timeout");
-                    break;
-                }
-            };
+        let Ok(read_result) = timeout(
+            security_config.idle_timeout,
+            buf_reader.read_line(&mut line),
+        )
+        .await
+        else {
+            tracing::debug!("connection idle timeout");
+            break;
+        };
 
         match read_result {
-            Ok(0) => break,
+            Ok(0) | Err(_) => break,
             Ok(_) => {
                 // Check max request size
                 if security_config.max_request_size > 0
@@ -264,13 +287,13 @@ where
                     let error_response = crate::Response::error(
                         crate::ErrorBuilder::new(
                             crate::error_codes::INVALID_REQUEST,
-                            "Request size limit exceeded".to_string(),
+                            "Request size limit exceeded".to_owned(),
                         )
                         .build(),
                         None,
                     );
                     if let Ok(json) = serde_json::to_string(&error_response) {
-                        let _ = tx.send(json).await;
+                        drop(tx.send(json).await);
                     }
                     break;
                 }
@@ -307,7 +330,6 @@ where
                     }
                 }
             }
-            Err(_) => break,
         }
     }
 
@@ -321,6 +343,9 @@ pub struct TcpStreamTlsClient {
 
 impl TcpStreamTlsClient {
     /// Connect to a TLS server (for testing - accepts self-signed certs)
+    ///
+    /// # Errors
+    /// Returns error if connection or TLS handshake fails
     pub async fn connect_insecure(
         addr: impl AsRef<str>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -343,6 +368,9 @@ impl TcpStreamTlsClient {
     }
 
     /// Send a JSON-RPC request
+    ///
+    /// # Errors
+    /// Returns error if serialization or send fails
     pub async fn send_request(
         &mut self,
         request: &crate::Request,
@@ -355,6 +383,9 @@ impl TcpStreamTlsClient {
     }
 
     /// Receive a JSON-RPC response
+    ///
+    /// # Errors
+    /// Returns error if read or deserialization fails
     pub async fn recv_response(&mut self) -> Result<crate::Response, Box<dyn std::error::Error>> {
         let mut reader = TokioBufReader::new(&mut self.stream);
         let mut line = String::new();

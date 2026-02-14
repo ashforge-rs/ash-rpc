@@ -15,17 +15,23 @@ pub struct PrometheusMetrics {
 
 impl PrometheusMetrics {
     /// Create a new Prometheus metrics collector
+    ///
+    /// # Errors
+    /// Returns error if registry or metric creation fails
     pub fn new() -> Result<Self, prometheus::Error> {
         Self::with_prefix("jsonrpc")
     }
 
     /// Create a new metrics collector with custom prefix
+    ///
+    /// # Errors
+    /// Returns error if registry or metric creation fails
     pub fn with_prefix(prefix: &str) -> Result<Self, prometheus::Error> {
         let registry = Registry::new();
 
         let request_counter = CounterVec::new(
             Opts::new(
-                format!("{}_requests_total", prefix),
+                format!("{prefix}_requests_total"),
                 "Total number of JSON-RPC requests",
             ),
             &["method"],
@@ -33,7 +39,7 @@ impl PrometheusMetrics {
 
         let request_duration = HistogramVec::new(
             HistogramOpts::new(
-                format!("{}_request_duration_seconds", prefix),
+                format!("{prefix}_request_duration_seconds"),
                 "JSON-RPC request duration in seconds",
             )
             .buckets(vec![
@@ -44,14 +50,14 @@ impl PrometheusMetrics {
 
         let error_counter = CounterVec::new(
             Opts::new(
-                format!("{}_errors_total", prefix),
+                format!("{prefix}_errors_total"),
                 "Total number of JSON-RPC errors",
             ),
             &["method"],
         )?;
 
         let active_connections = IntGauge::new(
-            format!("{}_active_connections", prefix),
+            format!("{prefix}_active_connections"),
             "Number of active connections",
         )?;
 
@@ -72,7 +78,7 @@ impl PrometheusMetrics {
     /// Record a request with method, duration, and success status
     pub fn record_request(&self, method: &str, duration: Duration, success: bool) {
         // Limit cardinality by using a normalized method name
-        let normalized_method = self.normalize_method(method);
+        let normalized_method = Self::normalize_method(method);
 
         self.request_counter
             .with_label_values(&[normalized_method])
@@ -100,11 +106,15 @@ impl PrometheusMetrics {
     }
 
     /// Get the Prometheus registry
+    #[must_use]
     pub fn registry(&self) -> &Registry {
         &self.registry
     }
 
     /// Gather metrics in Prometheus text format
+    ///
+    /// # Errors
+    /// Returns error if metric encoding fails
     pub fn gather_text(&self) -> Result<String, prometheus::Error> {
         use prometheus::TextEncoder;
         let encoder = TextEncoder::new();
@@ -116,7 +126,7 @@ impl PrometheusMetrics {
 
     /// Normalize method name to prevent cardinality explosion
     /// Keeps known methods as-is, groups unknown methods as "other"
-    fn normalize_method<'a>(&self, method: &'a str) -> &'a str {
+    fn normalize_method(method: &str) -> &str {
         // Common RPC methods - extend as needed
         const KNOWN_METHODS: &[&str] = &[
             "ping",
@@ -139,8 +149,9 @@ impl PrometheusMetrics {
 }
 
 impl Default for PrometheusMetrics {
+    #[allow(clippy::panic)] // Fatal configuration error, should panic
     fn default() -> Self {
-        Self::new().expect("Failed to create default PrometheusMetrics")
+        Self::new().unwrap_or_else(|e| panic!("Failed to create default PrometheusMetrics: {e}"))
     }
 }
 
@@ -152,30 +163,36 @@ pub struct PrometheusMetricsBuilder {
 
 impl PrometheusMetricsBuilder {
     /// Create a new builder with default prefix
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            prefix: "jsonrpc".to_string(),
+            prefix: "jsonrpc".to_owned(),
             known_methods: vec![
-                "ping".to_string(),
-                "echo".to_string(),
-                "healthcheck".to_string(),
+                "ping".to_owned(),
+                "echo".to_owned(),
+                "healthcheck".to_owned(),
             ],
         }
     }
 
     /// Set custom metric prefix
+    #[must_use]
     pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = prefix.into();
         self
     }
 
     /// Add known method names for cardinality control
+    #[must_use]
     pub fn add_known_method(mut self, method: impl Into<String>) -> Self {
         self.known_methods.push(method.into());
         self
     }
 
     /// Build the metrics collector
+    ///
+    /// # Errors
+    /// Returns error if metrics collector creation fails
     pub fn build(self) -> Result<PrometheusMetrics, prometheus::Error> {
         PrometheusMetrics::with_prefix(&self.prefix)
     }

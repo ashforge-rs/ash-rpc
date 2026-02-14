@@ -50,7 +50,7 @@ fmt:
 
 lint:
 	@echo "Running clippy..."
-	@cargo clippy --workspace --lib --bins --all-features -- -D warnings
+	@./lint.sh --workspace --lib --bins --all-features -- -D warnings
 
 doc:
 	@echo "Building documentation..."

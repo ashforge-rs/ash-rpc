@@ -25,6 +25,7 @@ impl TcpStreamServerBuilder {
         }
     }
 
+    #[must_use]
     pub fn processor<P>(mut self, processor: P) -> Self
     where
         P: MessageProcessor + Send + Sync + 'static,
@@ -33,26 +34,34 @@ impl TcpStreamServerBuilder {
         self
     }
 
+    #[must_use]
     pub fn security_config(mut self, config: SecurityConfig) -> Self {
         self.security_config = config;
         self
     }
 
+    #[must_use]
     pub fn max_connections(mut self, max: usize) -> Self {
         self.security_config.max_connections = max;
         self
     }
 
+    #[must_use]
     pub fn max_request_size(mut self, size: usize) -> Self {
         self.security_config.max_request_size = size;
         self
     }
 
+    #[must_use]
     pub fn request_timeout(mut self, timeout: std::time::Duration) -> Self {
         self.security_config.request_timeout = timeout;
         self
     }
 
+    /// Build the TCP streaming server
+    ///
+    /// # Errors
+    /// Returns error if processor is not set
     pub fn build(self) -> Result<TcpStreamServer, std::io::Error> {
         let processor = self.processor.ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "Processor not set")
@@ -79,6 +88,11 @@ impl TcpStreamServer {
         TcpStreamServerBuilder::new(addr)
     }
 
+    /// Run the TCP streaming server
+    ///
+    /// # Errors
+    /// Returns error if server startup or client handling fails
+    #[allow(clippy::cognitive_complexity)]
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind(&self.addr).await?;
         tracing::info!(
@@ -109,7 +123,8 @@ impl TcpStreamServer {
             }
 
             self.active_connections.fetch_add(1, Ordering::Relaxed);
-            tracing::debug!(remote_addr = %addr, active_connections = current_connections + 1, "new connection");
+            let new_count = current_connections.saturating_add(1);
+            tracing::debug!(remote_addr = %addr, active_connections = new_count, "new connection");
 
             let processor = Arc::clone(&self.processor);
             let security_config = self.security_config.clone();
@@ -132,12 +147,11 @@ async fn handle_stream_client(
     processor: Arc<dyn MessageProcessor + Send + Sync>,
     _security_config: SecurityConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (reader, writer) = stream.into_split();
-    let mut reader = BufReader::new(reader);
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
     let (tx, mut rx) = mpsc::channel::<String>(100);
 
     tokio::spawn(async move {
-        let mut writer = writer;
         while let Some(response) = rx.recv().await {
             if writer.write_all(response.as_bytes()).await.is_err()
                 || writer.write_all(b"\n").await.is_err()
@@ -151,7 +165,7 @@ async fn handle_stream_client(
     let mut line = String::new();
     loop {
         line.clear();
-        let bytes_read = reader.read_line(&mut line).await?;
+        let bytes_read = buf_reader.read_line(&mut line).await?;
 
         if bytes_read == 0 {
             break;
@@ -204,6 +218,10 @@ impl TcpStreamClientBuilder {
         Self { addr: addr.into() }
     }
 
+    /// Connect to TCP streaming server
+    ///
+    /// # Errors
+    /// Returns error if connection fails
     pub async fn connect(self) -> Result<TcpStreamClient, Box<dyn std::error::Error>> {
         let stream = TcpStream::connect(&self.addr).await?;
         Ok(TcpStreamClient::new(stream))
@@ -217,13 +235,12 @@ pub struct TcpStreamClient {
 
 impl TcpStreamClient {
     fn new(stream: TcpStream) -> Self {
-        let (reader, writer) = stream.into_split();
-        let mut reader = BufReader::new(reader);
+        let (reader, mut writer) = stream.into_split();
+        let mut buf_reader = BufReader::new(reader);
         let (write_tx, mut write_rx) = mpsc::channel::<String>(100);
         let (read_tx, read_rx) = mpsc::channel::<String>(100);
 
         tokio::spawn(async move {
-            let mut writer = writer;
             while let Some(message) = write_rx.recv().await {
                 if writer.write_all(message.as_bytes()).await.is_err() {
                     break;
@@ -241,17 +258,16 @@ impl TcpStreamClient {
             let mut line = String::new();
             loop {
                 line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) => break,
+                match buf_reader.read_line(&mut line).await {
+                    Ok(0) | Err(_) => break,
                     Ok(_) => {
                         let line_content = line.trim();
                         if !line_content.is_empty()
-                            && read_tx.send(line_content.to_string()).await.is_err()
+                            && read_tx.send(line_content.to_owned()).await.is_err()
                         {
                             break;
                         }
                     }
-                    Err(_) => break,
                 }
             }
         });
@@ -262,11 +278,19 @@ impl TcpStreamClient {
         }
     }
 
+    /// Send a message to the server
+    ///
+    /// # Errors
+    /// Returns error if serialization or send fails
     pub async fn send_message(&self, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::to_string(message)?;
-        self.tx.send(json).await.map_err(|e| e.into())
+        self.tx.send(json).await.map_err(std::convert::Into::into)
     }
 
+    /// Receive a message from the server
+    ///
+    /// # Errors
+    /// Returns error if deserialization fails
     pub async fn recv_message(&mut self) -> Result<Option<Message>, Box<dyn std::error::Error>> {
         if let Some(response) = self.rx.recv().await {
             let message: Message = serde_json::from_str(&response)?;

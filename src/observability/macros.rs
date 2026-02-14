@@ -219,7 +219,7 @@ macro_rules! observable_setup {
     }};
 }
 
-/// Container for observability components returned by observable_setup!
+/// Container for observability components returned by `observable_setup`!
 pub struct ObservabilityStack {
     #[cfg(feature = "prometheus")]
     pub metrics: ::std::sync::Arc<super::prometheus::PrometheusMetrics>,
@@ -229,11 +229,13 @@ pub struct ObservabilityStack {
 impl ObservabilityStack {
     /// Get the metrics collector
     #[cfg(feature = "prometheus")]
+    #[must_use]
     pub fn metrics(&self) -> ::std::sync::Arc<super::prometheus::PrometheusMetrics> {
         ::std::sync::Arc::clone(&self.metrics)
     }
 
     /// Get the logger
+    #[must_use]
     pub fn logger(&self) -> ::std::sync::Arc<dyn crate::logger::Logger> {
         ::std::sync::Arc::clone(&self.logger)
     }

@@ -27,7 +27,7 @@
 //! ```
 //!
 //! ### Optimized Usage (Compile-time Dispatch)
-//! For better performance, use the dispatch_call! macro:
+//! For better performance, use the `dispatch_call`! macro:
 //!
 //! ```text
 //! // In your handler function:
@@ -36,9 +36,11 @@
 //! }
 //! ```
 
-use crate::builders::*;
-use crate::traits::*;
-use crate::types::*;
+use crate::builders::{ErrorBuilder, ResponseBuilder};
+use crate::traits::{
+    Handler, JsonRPCMethod, MessageProcessor, OpenApiServer, OpenApiSpec, ProcessorCapabilities,
+};
+use crate::types::{Message, Notification, Request, RequestId, Response, error_codes};
 use std::sync::Arc;
 
 /// Method registry with optional authentication
@@ -47,7 +49,7 @@ pub struct MethodRegistry {
     auth_policy: Option<Arc<dyn crate::auth::AuthPolicy>>,
 }
 
-/// Macro to generate method dispatch match arms for registered JsonRPCMethod implementations
+/// Macro to generate method dispatch match arms for registered `JsonRPCMethod` implementations
 #[macro_export]
 macro_rules! register_methods {
     ($($method:expr),* $(,)?) => {
@@ -93,6 +95,7 @@ impl MethodRegistry {
     }
 
     /// Create an empty registry
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             methods: Vec::new(),
@@ -110,12 +113,14 @@ impl MethodRegistry {
     /// let registry = MethodRegistry::new(methods)
     ///     .with_auth(MyAuthPolicy::new());
     /// ```
+    #[must_use]
     pub fn with_auth<A: crate::auth::AuthPolicy + 'static>(mut self, policy: A) -> Self {
         self.auth_policy = Some(Arc::new(policy));
         self
     }
 
     /// Add a method implementation to the registry
+    #[must_use]
     pub fn add_method(mut self, method: Box<dyn JsonRPCMethod>) -> Self {
         tracing::trace!("adding method to registry");
         self.methods.push(method);
@@ -123,7 +128,7 @@ impl MethodRegistry {
     }
 
     /// Call a registered method asynchronously using compile-time dispatch
-    /// Note: This method should typically be replaced by using the dispatch_methods! macro directly
+    /// Note: This method should typically be replaced by using the `dispatch_methods`! macro directly
     /// for better compile-time optimization
     pub async fn call(
         &self,
@@ -178,24 +183,27 @@ impl MethodRegistry {
     }
 
     /// Check if a method is registered
+    #[must_use]
     pub fn has_method(&self, method_name: &str) -> bool {
         self.methods.iter().any(|m| m.method_name() == method_name)
     }
 
     /// Get list of all registered methods
+    #[must_use]
     pub fn get_methods(&self) -> Vec<String> {
         self.methods
             .iter()
-            .map(|m| m.method_name().to_string())
+            .map(|m| m.method_name().to_owned())
             .collect()
     }
 
     /// Get the number of registered methods
+    #[must_use]
     pub fn method_count(&self) -> usize {
         self.methods.len()
     }
 
-    /// Generate OpenAPI specification for all registered methods
+    /// Generate `OpenAPI` specification for all registered methods
     pub fn generate_openapi_spec(&self, title: &str, version: &str) -> OpenApiSpec {
         tracing::debug!(method_count = self.methods.len(), "generating openapi spec");
         let mut spec = OpenApiSpec::new(title, version);
@@ -208,7 +216,8 @@ impl MethodRegistry {
         spec
     }
 
-    /// Generate OpenAPI specification with custom info and servers
+    /// Generate `OpenAPI` specification with custom info and servers
+    #[must_use]
     pub fn generate_openapi_spec_with_info(
         &self,
         title: &str,
@@ -219,7 +228,7 @@ impl MethodRegistry {
         let mut spec = self.generate_openapi_spec(title, version);
 
         if let Some(desc) = description {
-            spec.info.description = Some(desc.to_string());
+            spec.info.description = Some(desc.to_owned());
         }
 
         for server in servers {
@@ -229,7 +238,10 @@ impl MethodRegistry {
         spec
     }
 
-    /// Export OpenAPI spec as JSON string
+    /// Export `OpenAPI` spec as JSON string
+    ///
+    /// # Errors
+    /// Returns error if JSON serialization fails
     pub fn export_openapi_json(
         &self,
         title: &str,
@@ -305,7 +317,7 @@ impl MessageProcessor for MethodRegistry {
             max_batch_size: Some(100),
             max_request_size: Some(1024 * 1024), // 1 MB
             request_timeout_secs: Some(30),
-            supported_versions: vec!["2.0".to_string()],
+            supported_versions: vec!["2.0".to_owned()],
         }
     }
 }

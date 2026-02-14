@@ -30,7 +30,7 @@ pub trait StatefulJsonRPCMethod<C: ServiceContext>: Send + Sync {
         id: Option<crate::RequestId>,
     ) -> Result<Response, C::Error>;
 
-    /// Get OpenAPI components for this method
+    /// Get `OpenAPI` components for this method
     fn openapi_components(&self) -> crate::traits::OpenApiMethodSpec {
         crate::traits::OpenApiMethodSpec::new(self.method_name())
     }
@@ -61,6 +61,7 @@ pub struct StatefulMethodRegistry<C: ServiceContext> {
 
 impl<C: ServiceContext> StatefulMethodRegistry<C> {
     /// Create a new empty registry
+    #[must_use]
     pub fn new() -> Self {
         Self {
             methods: Vec::new(),
@@ -68,6 +69,7 @@ impl<C: ServiceContext> StatefulMethodRegistry<C> {
     }
 
     /// Register a method handler
+    #[must_use]
     pub fn register<M>(mut self, method: M) -> Self
     where
         M: StatefulJsonRPCMethod<C> + 'static,
@@ -78,6 +80,9 @@ impl<C: ServiceContext> StatefulMethodRegistry<C> {
     }
 
     /// Call a registered method with context
+    ///
+    /// # Errors
+    /// Returns error if method handler fails
     pub async fn call(
         &self,
         context: &C,
@@ -172,8 +177,7 @@ impl<C: ServiceContext> MessageProcessor for StatefulProcessor<C> {
 
                         // Return generic error that preserves request ID
                         // Users can customize error handling by implementing their own MessageProcessor
-                        let generic_error =
-                            crate::Error::from_error_logged(&error as &dyn std::error::Error);
+                        let generic_error = crate::Error::from_error_logged(&error);
 
                         Some(
                             ResponseBuilder::new()
@@ -186,10 +190,11 @@ impl<C: ServiceContext> MessageProcessor for StatefulProcessor<C> {
                 }
             }
             Message::Notification(notification) => {
-                let _ = self
-                    .handler
-                    .handle_notification(&self.context, notification)
-                    .await;
+                drop(
+                    self.handler
+                        .handle_notification(&self.context, notification)
+                        .await,
+                );
                 None
             }
             Message::Response(_) => None,
@@ -213,6 +218,7 @@ impl<C: ServiceContext> StatefulProcessorBuilder<C> {
     }
 
     /// Set the handler for processing requests
+    #[must_use]
     pub fn handler<H>(mut self, handler: H) -> Self
     where
         H: StatefulHandler<C> + 'static,
@@ -222,12 +228,16 @@ impl<C: ServiceContext> StatefulProcessorBuilder<C> {
     }
 
     /// Set a method registry as the handler
+    #[must_use]
     pub fn registry(mut self, registry: StatefulMethodRegistry<C>) -> Self {
         self.handler = Some(Arc::new(registry));
         self
     }
 
     /// Build the stateful processor
+    ///
+    /// # Errors
+    /// Returns error if handler is not set
     pub fn build(self) -> Result<StatefulProcessor<C>, Box<dyn std::error::Error>> {
         let handler = self.handler.ok_or("Handler not set")?;
         Ok(StatefulProcessor {

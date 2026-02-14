@@ -1,6 +1,6 @@
 //! Core traits for JSON-RPC handlers and processors.
 
-use crate::types::*;
+use crate::types::{Message, Notification, Request, RequestId, Response};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -13,7 +13,7 @@ pub trait JsonRPCMethod: Send + Sync {
     /// Execute the JSON-RPC method asynchronously
     async fn call(&self, params: Option<serde_json::Value>, id: Option<RequestId>) -> Response;
 
-    /// Get OpenAPI components for this method
+    /// Get `OpenAPI` components for this method
     fn openapi_components(&self) -> OpenApiMethodSpec {
         OpenApiMethodSpec::new(self.method_name())
     }
@@ -110,12 +110,12 @@ impl Default for ProcessorCapabilities {
             max_batch_size: Some(100), // Secure default: limit batch size
             max_request_size: Some(1024 * 1024), // 1 MB
             request_timeout_secs: Some(30),
-            supported_versions: vec!["2.0".to_string()],
+            supported_versions: vec!["2.0".to_owned()],
         }
     }
 }
 
-/// Builder for ProcessorCapabilities with validation
+/// Builder for `ProcessorCapabilities` with validation
 pub struct ProcessorCapabilitiesBuilder {
     supports_batch: bool,
     supports_notifications: bool,
@@ -127,6 +127,7 @@ pub struct ProcessorCapabilitiesBuilder {
 
 impl ProcessorCapabilitiesBuilder {
     /// Create a new builder with secure defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             supports_batch: true,
@@ -134,17 +135,19 @@ impl ProcessorCapabilitiesBuilder {
             max_batch_size: Some(100),
             max_request_size: Some(1024 * 1024),
             request_timeout_secs: Some(30),
-            supported_versions: vec!["2.0".to_string()],
+            supported_versions: vec!["2.0".to_owned()],
         }
     }
 
     /// Enable or disable batch support
+    #[must_use]
     pub fn supports_batch(mut self, enabled: bool) -> Self {
         self.supports_batch = enabled;
         self
     }
 
     /// Enable or disable notification support
+    #[must_use]
     pub fn supports_notifications(mut self, enabled: bool) -> Self {
         self.supports_notifications = enabled;
         self
@@ -157,6 +160,7 @@ impl ProcessorCapabilitiesBuilder {
     ///
     /// # Panics
     /// Panics if size is 0 or greater than 1000
+    #[must_use]
     pub fn max_batch_size(mut self, size: Option<usize>) -> Self {
         if let Some(s) = size {
             assert!(
@@ -175,6 +179,7 @@ impl ProcessorCapabilitiesBuilder {
     ///
     /// # Panics
     /// Panics if size is less than 1KB or greater than 100MB
+    #[must_use]
     pub fn max_request_size(mut self, size: Option<usize>) -> Self {
         if let Some(s) = size {
             assert!(
@@ -193,6 +198,7 @@ impl ProcessorCapabilitiesBuilder {
     ///
     /// # Panics
     /// Panics if timeout is 0 or greater than 300 seconds
+    #[must_use]
     pub fn request_timeout_secs(mut self, timeout: Option<u64>) -> Self {
         if let Some(t) = timeout {
             assert!(
@@ -205,6 +211,7 @@ impl ProcessorCapabilitiesBuilder {
     }
 
     /// Add a supported JSON-RPC version
+    #[must_use]
     pub fn add_version(mut self, version: impl Into<String>) -> Self {
         self.supported_versions.push(version.into());
         self
@@ -237,7 +244,7 @@ impl Default for ProcessorCapabilitiesBuilder {
     }
 }
 
-/// OpenAPI specification for a single JSON-RPC method
+/// `OpenAPI` specification for a single JSON-RPC method
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenApiMethodSpec {
     pub method_name: String,
@@ -251,7 +258,7 @@ pub struct OpenApiMethodSpec {
 }
 
 impl OpenApiMethodSpec {
-    /// Create a new OpenAPI method specification
+    /// Create a new `OpenAPI` method specification
     pub fn new(method_name: impl Into<String>) -> Self {
         Self {
             method_name: method_name.into(),
@@ -266,49 +273,56 @@ impl OpenApiMethodSpec {
     }
 
     /// Add a summary
+    #[must_use]
     pub fn with_summary(mut self, summary: impl Into<String>) -> Self {
         self.summary = Some(summary.into());
         self
     }
 
     /// Add a description
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
     /// Add parameter schema
+    #[must_use]
     pub fn with_parameters(mut self, params: serde_json::Value) -> Self {
         self.parameters = Some(params);
         self
     }
 
     /// Add result schema
+    #[must_use]
     pub fn with_result(mut self, result: serde_json::Value) -> Self {
         self.result = Some(result);
         self
     }
 
     /// Add an error specification
+    #[must_use]
     pub fn with_error(mut self, error: OpenApiError) -> Self {
         self.errors.push(error);
         self
     }
 
     /// Add a tag
+    #[must_use]
     pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
         self.tags.push(tag.into());
         self
     }
 
     /// Add an example
+    #[must_use]
     pub fn with_example(mut self, example: OpenApiExample) -> Self {
         self.examples.push(example);
         self
     }
 }
 
-/// OpenAPI error specification
+/// `OpenAPI` error specification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenApiError {
     pub code: i32,
@@ -327,13 +341,14 @@ impl OpenApiError {
     }
 
     /// Add description
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 }
 
-/// OpenAPI example for a method
+/// `OpenAPI` example for a method
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenApiExample {
     pub name: String,
@@ -356,31 +371,35 @@ impl OpenApiExample {
     }
 
     /// Add summary
+    #[must_use]
     pub fn with_summary(mut self, summary: impl Into<String>) -> Self {
         self.summary = Some(summary.into());
         self
     }
 
     /// Add description
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 
     /// Add parameters
+    #[must_use]
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Add result
+    #[must_use]
     pub fn with_result(mut self, result: serde_json::Value) -> Self {
         self.result = Some(result);
         self
     }
 }
 
-/// Complete OpenAPI specification composed from all registered methods
+/// Complete `OpenAPI` specification composed from all registered methods
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenApiSpec {
     pub openapi: String,
@@ -391,10 +410,10 @@ pub struct OpenApiSpec {
 }
 
 impl OpenApiSpec {
-    /// Create a new OpenAPI specification
+    /// Create a new `OpenAPI` specification
     pub fn new(title: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
-            openapi: "3.0.3".to_string(),
+            openapi: "3.0.3".to_owned(),
             info: OpenApiInfo {
                 title: title.into(),
                 version: version.into(),
@@ -424,13 +443,14 @@ impl OpenApiSpec {
     }
 
     /// Set description
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.info.description = Some(description.into());
         self
     }
 }
 
-/// OpenAPI info section
+/// `OpenAPI` info section
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenApiInfo {
     pub title: String,
@@ -438,7 +458,7 @@ pub struct OpenApiInfo {
     pub description: Option<String>,
 }
 
-/// OpenAPI server specification
+/// `OpenAPI` server specification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenApiServer {
     pub url: String,
@@ -455,13 +475,14 @@ impl OpenApiServer {
     }
 
     /// Add description
+    #[must_use]
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
     }
 }
 
-/// OpenAPI components section
+/// `OpenAPI` components section
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OpenApiComponents {
     pub schemas: HashMap<String, serde_json::Value>,

@@ -20,11 +20,13 @@ impl TracingProcessor {
     }
 
     /// Create a tracer from the global tracer provider
+    #[must_use]
     pub fn from_global(service_name: &str) -> Self {
         Self::new(service_name)
     }
 
     /// Start a span for a message
+    #[must_use]
     pub fn start_span(&self, message: &Message) -> Option<SpanGuard> {
         let (span_name, method_name) = match message {
             Message::Request(req) => (format!("jsonrpc.{}", req.method), Some(req.method.clone())),
@@ -32,7 +34,7 @@ impl TracingProcessor {
                 format!("jsonrpc.{}", notif.method),
                 Some(notif.method.clone()),
             ),
-            Message::Response(_) => ("jsonrpc.response".to_string(), None),
+            Message::Response(_) => ("jsonrpc.response".to_owned(), None),
         };
 
         let tracer = global::tracer(self.service_name.clone());
@@ -68,7 +70,8 @@ impl TracingProcessor {
     }
 
     /// Extract trace context from request parameters
-    /// Looks for a "_trace_context" field in params
+    /// Looks for a `_trace_context` field in params
+    #[must_use]
     pub fn extract_context(params: &Option<serde_json::Value>) -> Option<opentelemetry::Context> {
         if let Some(serde_json::Value::Object(map)) = params
             && let Some(trace_ctx) = map.get("_trace_context")
@@ -139,12 +142,14 @@ impl TracingBuilder {
     }
 
     /// Set service version
+    #[must_use]
     pub fn service_version(mut self, version: impl Into<String>) -> Self {
         self.service_version = Some(version.into());
         self
     }
 
     /// Build using the global tracer
+    #[must_use]
     pub fn build(self) -> TracingProcessor {
         TracingProcessor::from_global(&self.service_name)
     }

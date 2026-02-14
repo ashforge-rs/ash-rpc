@@ -22,16 +22,16 @@ impl AuditBackend for StdoutAuditBackend {
     fn log_audit(&self, event: &AuditEvent) {
         match serde_json::to_string(event) {
             Ok(json) => {
-                println!("{}", json);
+                println!("{json}");
             }
             Err(e) => {
-                eprintln!("[AUDIT ERROR] Failed to serialize audit event: {}", e);
+                eprintln!("[AUDIT ERROR] Failed to serialize audit event: {e}");
             }
         }
     }
 
     fn flush(&self) {
-        let _ = std::io::stdout().flush();
+        drop(std::io::stdout().flush());
     }
 }
 
@@ -43,16 +43,16 @@ impl AuditBackend for StderrAuditBackend {
     fn log_audit(&self, event: &AuditEvent) {
         match serde_json::to_string(event) {
             Ok(json) => {
-                eprintln!("{}", json);
+                eprintln!("{json}");
             }
             Err(e) => {
-                eprintln!("[AUDIT ERROR] Failed to serialize audit event: {}", e);
+                eprintln!("[AUDIT ERROR] Failed to serialize audit event: {e}");
             }
         }
     }
 
     fn flush(&self) {
-        let _ = std::io::stderr().flush();
+        drop(std::io::stderr().flush());
     }
 }
 
@@ -73,16 +73,18 @@ pub struct MultiAuditBackend {
 
 impl MultiAuditBackend {
     /// Create a new multi-backend logger
+    #[must_use]
     pub fn new(backends: Vec<Box<dyn AuditBackend>>) -> Self {
         Self { backends }
     }
 
     /// Create a new multi-backend logger from Arc-wrapped backends
+    #[must_use]
     pub fn from_arcs(backends: Vec<std::sync::Arc<dyn AuditBackend>>) -> Self {
         Self {
             backends: backends
                 .into_iter()
-                .map(|b| Box::new(ArcBackendWrapper(b)) as Box<dyn AuditBackend>)
+                .map(|b| -> Box<dyn AuditBackend> { Box::new(ArcBackendWrapper(b)) })
                 .collect(),
         }
     }

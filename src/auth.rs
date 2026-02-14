@@ -60,11 +60,13 @@ pub struct ConnectionContext {
 
 impl ConnectionContext {
     /// Create a new empty context
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create context with remote address
+    #[must_use]
     pub fn with_addr(remote_addr: SocketAddr) -> Self {
         Self {
             remote_addr: Some(remote_addr),
@@ -78,6 +80,7 @@ impl ConnectionContext {
     }
 
     /// Get typed metadata
+    #[must_use]
     pub fn get<T: Any + Send + Sync>(&self, key: &str) -> Option<&T> {
         self.metadata.get(key).and_then(|v| v.downcast_ref::<T>())
     }
@@ -164,10 +167,10 @@ impl ContextExtractor for DefaultContextExtractor {
 /// You decide what "access" means - it could be:
 /// - Checking an API key in request params
 /// - Validating a JWT token
-/// - Verifying client certificates (via ConnectionContext)
+/// - Verifying client certificates (via `ConnectionContext`)
 /// - Role-based checks
 /// - Rate limiting
-/// - IP whitelisting (via ConnectionContext)
+/// - IP whitelisting (via `ConnectionContext`)
 /// - Anything else you need
 pub trait AuthPolicy: Send + Sync {
     /// Check if a request should be allowed to proceed
