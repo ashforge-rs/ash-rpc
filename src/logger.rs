@@ -45,33 +45,33 @@ pub struct StdoutLogger;
 
 impl Logger for StdoutLogger {
     fn debug(&self, message: &str, kvs: &[LogKv]) {
-        print!("[DEBUG] {}", message);
+        print!("[DEBUG] {message}");
         for (k, v) in kvs {
-            print!(" {}={}", k, v);
+            print!(" {k}={v}");
         }
         println!();
     }
 
     fn info(&self, message: &str, kvs: &[LogKv]) {
-        print!("[INFO] {}", message);
+        print!("[INFO] {message}");
         for (k, v) in kvs {
-            print!(" {}={}", k, v);
+            print!(" {k}={v}");
         }
         println!();
     }
 
     fn warn(&self, message: &str, kvs: &[LogKv]) {
-        print!("[WARN] {}", message);
+        print!("[WARN] {message}");
         for (k, v) in kvs {
-            print!(" {}={}", k, v);
+            print!(" {k}={v}");
         }
         println!();
     }
 
     fn error(&self, message: &str, kvs: &[LogKv]) {
-        eprint!("[ERROR] {}", message);
+        eprint!("[ERROR] {message}");
         for (k, v) in kvs {
-            eprint!(" {}={}", k, v);
+            eprint!(" {k}={v}");
         }
         eprintln!();
     }
@@ -83,6 +83,7 @@ pub struct TracingLogger;
 
 impl TracingLogger {
     /// Create a new tracing logger
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -97,36 +98,36 @@ impl Default for TracingLogger {
 impl Logger for TracingLogger {
     fn debug(&self, message: &str, kvs: &[LogKv]) {
         if kvs.is_empty() {
-            tracing::debug!("{}", message);
+            tracing::debug!("{message}");
         } else {
-            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{k}={v}")).collect();
             tracing::debug!("{} {}", message, fields.join(" "));
         }
     }
 
     fn info(&self, message: &str, kvs: &[LogKv]) {
         if kvs.is_empty() {
-            tracing::info!("{}", message);
+            tracing::info!("{message}");
         } else {
-            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{k}={v}")).collect();
             tracing::info!("{} {}", message, fields.join(" "));
         }
     }
 
     fn warn(&self, message: &str, kvs: &[LogKv]) {
         if kvs.is_empty() {
-            tracing::warn!("{}", message);
+            tracing::warn!("{message}");
         } else {
-            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{k}={v}")).collect();
             tracing::warn!("{} {}", message, fields.join(" "));
         }
     }
 
     fn error(&self, message: &str, kvs: &[LogKv]) {
         if kvs.is_empty() {
-            tracing::error!("{}", message);
+            tracing::error!("{message}");
         } else {
-            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
+            let fields: Vec<String> = kvs.iter().map(|(k, v)| format!("{k}={v}")).collect();
             tracing::error!("{} {}", message, fields.join(" "));
         }
     }

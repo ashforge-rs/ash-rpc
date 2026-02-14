@@ -3,7 +3,7 @@
 //! This module provides functionality for long-lived subscriptions and streaming responses,
 //! allowing servers to push events to clients over time.
 
-use crate::types::*;
+use crate::types::RequestId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ impl StreamRequest {
     /// Create a new stream request
     pub fn new(method: impl Into<String>, id: RequestId) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             method: method.into(),
             params: None,
             id,
@@ -37,18 +37,21 @@ impl StreamRequest {
     }
 
     /// Add parameters to the stream request
+    #[must_use]
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Set a custom stream ID
+    #[must_use]
     pub fn with_stream_id(mut self, stream_id: impl Into<String>) -> Self {
         self.stream_id = Some(stream_id.into());
         self
     }
 
     /// Get the stream ID, generating one if not present
+    #[must_use]
     pub fn stream_id(&self) -> StreamId {
         self.stream_id
             .clone()
@@ -56,11 +59,13 @@ impl StreamRequest {
     }
 
     /// Get the method name
+    #[must_use]
     pub fn method(&self) -> &str {
         &self.method
     }
 
     /// Get the parameters
+    #[must_use]
     pub fn params(&self) -> Option<&serde_json::Value> {
         self.params.as_ref()
     }
@@ -82,9 +87,10 @@ pub struct StreamResponse {
 
 impl StreamResponse {
     /// Create a successful stream response
+    #[must_use]
     pub fn success(stream_id: StreamId, id: RequestId) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: Some(serde_json::json!({
                 "stream_id": stream_id.clone(),
                 "status": "active"
@@ -97,9 +103,10 @@ impl StreamResponse {
     }
 
     /// Create an error stream response
+    #[must_use]
     pub fn error(error: crate::Error, id: RequestId, stream_id: StreamId) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: None,
             error: Some(error),
             id,
@@ -109,9 +116,10 @@ impl StreamResponse {
     }
 
     /// Create a stream closed response
+    #[must_use]
     pub fn closed(stream_id: StreamId, id: RequestId) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: Some(serde_json::json!({
                 "stream_id": stream_id.clone(),
                 "status": "closed"
@@ -149,7 +157,7 @@ impl StreamEvent {
     /// Create a new stream event
     pub fn new(stream_id: StreamId, method: impl Into<String>, data: serde_json::Value) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             method: method.into(),
             stream_id,
             params: data,
@@ -158,22 +166,26 @@ impl StreamEvent {
     }
 
     /// Add sequence number to the event
+    #[must_use]
     pub fn with_sequence(mut self, seq: u64) -> Self {
         self.sequence = Some(seq);
         self
     }
 
     /// Get the stream ID
+    #[must_use]
     pub fn stream_id(&self) -> &str {
         &self.stream_id
     }
 
     /// Get the event data
+    #[must_use]
     pub fn data(&self) -> &serde_json::Value {
         &self.params
     }
 
     /// Get the sequence number if present
+    #[must_use]
     pub fn sequence(&self) -> Option<u64> {
         self.sequence
     }
@@ -190,16 +202,18 @@ pub struct UnsubscribeRequest {
 
 impl UnsubscribeRequest {
     /// Create a new unsubscribe request
+    #[must_use]
     pub fn new(stream_id: StreamId, id: RequestId) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
-            method: "unsubscribe".to_string(),
+            jsonrpc: "2.0".to_owned(),
+            method: "unsubscribe".to_owned(),
             stream_id,
             id,
         }
     }
 
     /// Get the stream ID
+    #[must_use]
     pub fn stream_id(&self) -> &str {
         &self.stream_id
     }
@@ -216,22 +230,27 @@ pub enum StreamMessage {
 }
 
 impl StreamMessage {
+    #[must_use]
     pub fn is_stream_request(&self) -> bool {
         matches!(self, StreamMessage::StreamRequest(_))
     }
 
+    #[must_use]
     pub fn is_stream_response(&self) -> bool {
         matches!(self, StreamMessage::StreamResponse(_))
     }
 
+    #[must_use]
     pub fn is_stream_event(&self) -> bool {
         matches!(self, StreamMessage::StreamEvent(_))
     }
 
+    #[must_use]
     pub fn is_unsubscribe_request(&self) -> bool {
         matches!(self, StreamMessage::UnsubscribeRequest(_))
     }
 
+    #[must_use]
     pub fn as_stream_request(&self) -> Option<&StreamRequest> {
         match self {
             StreamMessage::StreamRequest(req) => Some(req),
@@ -239,6 +258,7 @@ impl StreamMessage {
         }
     }
 
+    #[must_use]
     pub fn as_stream_response(&self) -> Option<&StreamResponse> {
         match self {
             StreamMessage::StreamResponse(resp) => Some(resp),
@@ -246,6 +266,7 @@ impl StreamMessage {
         }
     }
 
+    #[must_use]
     pub fn as_stream_event(&self) -> Option<&StreamEvent> {
         match self {
             StreamMessage::StreamEvent(event) => Some(event),
@@ -253,6 +274,7 @@ impl StreamMessage {
         }
     }
 
+    #[must_use]
     pub fn stream_id(&self) -> Option<&str> {
         match self {
             StreamMessage::StreamRequest(req) => req.stream_id.as_deref(),
@@ -313,6 +335,7 @@ pub struct StreamInfo {
 
 impl StreamManager {
     /// Create a new stream manager
+    #[must_use]
     pub fn new() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         Self {
@@ -328,7 +351,7 @@ impl StreamManager {
     where
         H: StreamHandler + 'static,
     {
-        let method = handler.subscription_method().to_string();
+        let method = handler.subscription_method().to_owned();
         let handler_arc = Arc::new(handler);
 
         let mut handlers = self.handlers.write().await;
@@ -338,24 +361,27 @@ impl StreamManager {
     }
 
     /// Subscribe to a stream
+    ///
+    /// # Errors
+    /// Returns error if method not found or handler subscription fails
     pub async fn subscribe(&self, request: StreamRequest) -> Result<StreamResponse, crate::Error> {
         let stream_id = request.stream_id();
-        let method = request.method().to_string();
+        let method = request.method().to_owned();
 
         // Get the handler for this method
         let handlers = self.handlers.read().await;
         let handler = handlers.get(&method).ok_or_else(|| {
             crate::ErrorBuilder::new(
                 crate::error_codes::METHOD_NOT_FOUND,
-                format!("Stream method not found: {}", method),
+                format!("Stream method not found: {method}"),
             )
             .build()
         })?;
-        let handler = Arc::clone(handler);
+        let handler_arc = Arc::clone(handler);
         drop(handlers);
 
         // Call the handler to subscribe
-        let response = handler
+        let response = handler_arc
             .subscribe(request.params.clone(), stream_id.clone())
             .await?;
 
@@ -377,7 +403,7 @@ impl StreamManager {
         let event_sender = self.event_sender.clone();
         let stream_id_clone = stream_id.clone();
         tokio::spawn(async move {
-            if let Err(e) = handler
+            if let Err(e) = handler_arc
                 .start_stream(stream_id_clone.clone(), request.params, event_sender)
                 .await
             {
@@ -390,13 +416,16 @@ impl StreamManager {
     }
 
     /// Unsubscribe from a stream
+    ///
+    /// # Errors
+    /// Returns error if stream not found or handler unsubscription fails
     pub async fn unsubscribe(&self, stream_id: &str) -> Result<(), crate::Error> {
         // Get stream info
         let streams = self.active_streams.read().await;
         let stream_info = streams.get(stream_id).ok_or_else(|| {
             crate::ErrorBuilder::new(
                 crate::error_codes::INVALID_PARAMS,
-                format!("Stream not found: {}", stream_id),
+                format!("Stream not found: {stream_id}"),
             )
             .build()
         })?;
@@ -412,9 +441,9 @@ impl StreamManager {
         drop(handlers);
 
         // Remove from active streams
-        let mut streams = self.active_streams.write().await;
-        streams.remove(stream_id);
-        drop(streams);
+        let mut streams_write = self.active_streams.write().await;
+        streams_write.remove(stream_id);
+        drop(streams_write);
 
         tracing::info!(stream_id = %stream_id, method = %method, "stream unsubscribed");
         Ok(())
@@ -458,7 +487,7 @@ impl StreamManager {
         };
 
         for stream_id in stream_ids {
-            let _ = self.unsubscribe(&stream_id).await;
+            drop(self.unsubscribe(&stream_id).await);
         }
 
         tracing::info!("all streams closed");
@@ -473,6 +502,7 @@ impl StreamManager {
     }
 
     /// Increment stream sequence
+    #[allow(clippy::arithmetic_side_effects)] // Sequence counter increment
     pub async fn increment_sequence(&self, stream_id: &str) -> Option<u64> {
         let mut streams = self.active_streams.write().await;
         if let Some(stream_info) = streams.get_mut(stream_id) {
@@ -494,13 +524,13 @@ impl StreamManager {
         for stream_info in matching_streams {
             let sequence = self.increment_sequence(&stream_info.stream_id).await;
             let event = StreamEvent::new(stream_info.stream_id.clone(), method, data.clone());
-            let event = if let Some(seq) = sequence {
+            let final_event = if let Some(seq) = sequence {
                 event.with_sequence(seq)
             } else {
                 event
             };
 
-            if self.event_sender.send(event).is_err() {
+            if self.event_sender.send(final_event).is_err() {
                 tracing::error!(stream_id = %stream_info.stream_id, "failed to send event");
             }
         }
@@ -533,24 +563,28 @@ impl StreamRequestBuilder {
     }
 
     /// Set the parameters
+    #[must_use]
     pub fn params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Set the request ID
+    #[must_use]
     pub fn id(mut self, id: RequestId) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set a custom stream ID
+    #[must_use]
     pub fn stream_id(mut self, stream_id: impl Into<String>) -> Self {
         self.stream_id = Some(stream_id.into());
         self
     }
 
     /// Build the stream request
+    #[must_use]
     pub fn build(self) -> StreamRequest {
         let id = self
             .id

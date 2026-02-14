@@ -1,11 +1,11 @@
-//! MessageProcessor wrapper that automatically logs security audit events.
+//! `MessageProcessor` wrapper that automatically logs security audit events.
 
 use super::{AuditBackend, AuditEvent, AuditEventType, AuditIntegrity, AuditResult, AuditSeverity};
 use crate::{Message, MessageProcessor, ProcessorCapabilities, Response, auth::ConnectionContext};
 use async_trait::async_trait;
 use std::sync::Arc;
 
-/// Wraps MessageProcessor to automatically log requests, responses, and security events
+/// Wraps `MessageProcessor` to automatically log requests, responses, and security events
 pub struct AuditProcessor {
     inner: Arc<dyn MessageProcessor + Send + Sync>,
     backend: Arc<dyn AuditBackend>,
@@ -58,7 +58,7 @@ impl AuditProcessor {
                     if let Some(user_id) = ctx.get::<String>("user_id") {
                         event = event.principal(user_id);
                     } else if let Some(api_key) = ctx.get::<String>("api_key") {
-                        event = event.principal(format!("api_key:{}", api_key));
+                        event = event.principal(format!("api_key:{api_key}"));
                     }
                 }
 
@@ -103,7 +103,7 @@ impl AuditProcessor {
         };
 
         let correlation_id = match message {
-            Message::Request(req) => req.id.as_ref().map(|id| id.to_string()),
+            Message::Request(req) => req.id.as_ref().map(std::string::ToString::to_string),
             _ => None,
         };
 
@@ -183,24 +183,28 @@ pub struct AuditProcessorBuilder {
 
 impl AuditProcessorBuilder {
     /// Set the audit backend
+    #[must_use]
     pub fn with_backend(mut self, backend: Arc<dyn AuditBackend>) -> Self {
         self.backend = backend;
         self
     }
 
     /// Set the integrity mechanism
+    #[must_use]
     pub fn with_integrity(mut self, integrity: Arc<dyn AuditIntegrity>) -> Self {
         self.integrity = integrity;
         self
     }
 
     /// Set the connection context for extracting principal and metadata
+    #[must_use]
     pub fn with_connection_context(mut self, context: Arc<ConnectionContext>) -> Self {
         self.connection_context = Some(context);
         self
     }
 
     /// Build the audit processor
+    #[must_use]
     pub fn build(self) -> AuditProcessor {
         AuditProcessor {
             inner: self.processor,

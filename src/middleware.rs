@@ -16,6 +16,7 @@ pub struct JsonRpcLayer {
 
 impl JsonRpcLayer {
     /// Create a new JSON-RPC layer with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self {
             validate_version: true,
@@ -24,12 +25,14 @@ impl JsonRpcLayer {
     }
 
     /// Enable or disable JSON-RPC version validation
+    #[must_use]
     pub fn validate_version(mut self, validate: bool) -> Self {
         self.validate_version = validate;
         self
     }
 
     /// Require request ID to be present
+    #[must_use]
     pub fn require_id(mut self, require: bool) -> Self {
         self.require_id = require;
         self
@@ -104,8 +107,9 @@ where
         Box::pin(async move {
             // Note: In a complete implementation, validation would be performed here
             // using the validate_version and require_id flags to check JSON-RPC format
-            // For now, these flags are captured to avoid unused field warnings
-            let _validation_config = (validate_version, require_id);
+            // For now, these flags would be used in actual validation logic
+            let _ = validate_version;
+            let _ = require_id;
 
             // Pass through to the inner service
             inner.call(req).await
@@ -121,6 +125,7 @@ pub struct JsonRpcMiddlewareBuilder {
 
 impl JsonRpcMiddlewareBuilder {
     /// Create a new middleware builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             validate_version: true,
@@ -129,18 +134,21 @@ impl JsonRpcMiddlewareBuilder {
     }
 
     /// Enable or disable JSON-RPC version validation
+    #[must_use]
     pub fn validate_version(mut self, validate: bool) -> Self {
         self.validate_version = validate;
         self
     }
 
     /// Require request ID to be present
+    #[must_use]
     pub fn require_id(mut self, require: bool) -> Self {
         self.require_id = require;
         self
     }
 
     /// Build the layer with the configured options
+    #[must_use]
     pub fn build(self) -> JsonRpcLayer {
         JsonRpcLayer {
             validate_version: self.validate_version,

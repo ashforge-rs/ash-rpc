@@ -48,11 +48,13 @@ pub struct ShutdownHandle {
 
 impl ShutdownHandle {
     /// Trigger shutdown
+    #[allow(clippy::let_underscore_must_use)]
     pub async fn shutdown(&self) {
         let _ = self.sender.send(()).await;
     }
 
     /// Trigger shutdown (non-async, may fail if channel is full)
+    #[allow(clippy::let_underscore_must_use)]
     pub fn shutdown_sync(&self) {
         let _ = self.sender.try_send(());
     }
@@ -90,6 +92,7 @@ pub struct ShutdownConfigBuilder {
 
 impl ShutdownConfigBuilder {
     /// Create a new builder with defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             grace_period: Duration::from_secs(30),
@@ -99,24 +102,28 @@ impl ShutdownConfigBuilder {
     }
 
     /// Set the grace period for draining connections
+    #[must_use]
     pub fn grace_period(mut self, duration: Duration) -> Self {
         self.grace_period = duration;
         self
     }
 
     /// Set the force timeout (hard deadline)
+    #[must_use]
     pub fn force_timeout(mut self, duration: Duration) -> Self {
         self.force_timeout = duration;
         self
     }
 
     /// Enable or disable OS signal handling
+    #[must_use]
     pub fn handle_signals(mut self, enabled: bool) -> Self {
         self.handle_signals = enabled;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> ShutdownConfig {
         ShutdownConfig {
             grace_period: self.grace_period,
@@ -142,6 +149,7 @@ pub struct ShutdownManager {
 
 impl ShutdownManager {
     /// Create a new shutdown manager
+    #[must_use]
     pub fn new(config: ShutdownConfig) -> Self {
         let (tx, rx) = mpsc::channel(1);
         let signal = ShutdownSignal::new(rx);
@@ -156,11 +164,13 @@ impl ShutdownManager {
     }
 
     /// Get a cloneable shutdown signal
+    #[must_use]
     pub fn signal(&self) -> ShutdownSignal {
         self.signal.clone()
     }
 
     /// Get a handle to trigger shutdown
+    #[must_use]
     pub fn handle(&self) -> ShutdownHandle {
         self.handle.clone()
     }
@@ -179,14 +189,15 @@ impl ShutdownManager {
     }
 
     /// Wait for shutdown signal and execute hooks
+    #[allow(clippy::cognitive_complexity)]
     pub async fn wait_for_shutdown(&self) {
         if self.config.handle_signals {
             // Wait for either signal or shutdown handle
             tokio::select! {
-                _ = self.signal.recv() => {
+                () = self.signal.recv() => {
                     tracing::info!("shutdown signal received via handle");
                 }
-                _ = Self::wait_for_signal() => {
+                () = Self::wait_for_signal() => {
                     tracing::info!("shutdown signal received from OS");
                 }
             }
@@ -200,6 +211,7 @@ impl ShutdownManager {
     }
 
     /// Execute all registered shutdown hooks
+    #[allow(clippy::cognitive_complexity)]
     async fn execute_hooks(&self) {
         let hooks = self.hooks.read().await;
 
@@ -209,7 +221,7 @@ impl ShutdownManager {
             tracing::debug!(hook_index = i, "executing shutdown hook");
 
             match timeout(self.config.grace_period, hook()).await {
-                Ok(_) => {
+                Ok(()) => {
                     tracing::debug!(hook_index = i, "shutdown hook completed");
                 }
                 Err(_) => {
@@ -227,13 +239,14 @@ impl ShutdownManager {
 
     /// Wait for OS signals (SIGTERM, SIGINT)
     #[cfg(unix)]
+    #[allow(clippy::panic)] // Signal handler registration failure is unrecoverable
     async fn wait_for_signal() {
         use tokio::signal::unix::{SignalKind, signal};
 
-        let mut sigterm =
-            signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
-        let mut sigint =
-            signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+        let mut sigterm = signal(SignalKind::terminate())
+            .unwrap_or_else(|_| panic!("failed to register SIGTERM handler"));
+        let mut sigint = signal(SignalKind::interrupt())
+            .unwrap_or_else(|_| panic!("failed to register SIGINT handler"));
 
         tokio::select! {
             _ = sigterm.recv() => {
@@ -254,22 +267,26 @@ impl ShutdownManager {
     }
 
     /// Get the configured grace period
+    #[must_use]
     pub fn grace_period(&self) -> Duration {
         self.config.grace_period
     }
 
     /// Get the configured force timeout
+    #[must_use]
     pub fn force_timeout(&self) -> Duration {
         self.config.force_timeout
     }
 }
 
 /// Helper to create a basic shutdown manager with defaults
+#[must_use]
 pub fn create_shutdown_manager() -> ShutdownManager {
     ShutdownManager::new(ShutdownConfig::default())
 }
 
 /// Helper to create a shutdown manager with custom config
+#[must_use]
 pub fn create_shutdown_manager_with_config(config: ShutdownConfig) -> ShutdownManager {
     ShutdownManager::new(config)
 }

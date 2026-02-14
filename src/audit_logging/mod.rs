@@ -121,6 +121,7 @@ pub enum AuditSeverity {
 
 impl AuditEvent {
     /// Create a new audit event builder
+    #[must_use]
     pub fn builder() -> AuditEventBuilder {
         AuditEventBuilder::default()
     }
@@ -131,18 +132,21 @@ impl AuditEvent {
     }
 
     /// Set the correlation ID from a request
+    #[must_use]
     pub fn with_correlation_id(mut self, correlation_id: Option<String>) -> Self {
         self.correlation_id = correlation_id;
         self
     }
 
     /// Set the principal from connection context
+    #[must_use]
     pub fn with_principal<S: Into<String>>(mut self, principal: S) -> Self {
         self.principal = Some(principal.into());
         self
     }
 
     /// Set the remote address
+    #[must_use]
     pub fn with_remote_addr(mut self, addr: SocketAddr) -> Self {
         self.remote_addr = Some(addr);
         self
@@ -166,48 +170,56 @@ pub struct AuditEventBuilder {
 
 impl AuditEventBuilder {
     /// Set event type
+    #[must_use]
     pub fn event_type(mut self, event_type: AuditEventType) -> Self {
         self.event_type = Some(event_type);
         self
     }
 
     /// Set correlation ID
+    #[must_use]
     pub fn correlation_id<S: Into<String>>(mut self, id: S) -> Self {
         self.correlation_id = Some(id.into());
         self
     }
 
     /// Set remote address
+    #[must_use]
     pub fn remote_addr(mut self, addr: SocketAddr) -> Self {
         self.remote_addr = Some(addr);
         self
     }
 
     /// Set principal
+    #[must_use]
     pub fn principal<S: Into<String>>(mut self, principal: S) -> Self {
         self.principal = Some(principal.into());
         self
     }
 
     /// Set method name
+    #[must_use]
     pub fn method<S: Into<String>>(mut self, method: S) -> Self {
         self.method = Some(method.into());
         self
     }
 
     /// Set result
+    #[must_use]
     pub fn result(mut self, result: AuditResult) -> Self {
         self.result = Some(result);
         self
     }
 
     /// Set severity
+    #[must_use]
     pub fn severity(mut self, severity: AuditSeverity) -> Self {
         self.severity = Some(severity);
         self
     }
 
     /// Add metadata entry
+    #[must_use]
     pub fn metadata<K: Into<String>, V: Into<serde_json::Value>>(
         mut self,
         key: K,
@@ -218,21 +230,32 @@ impl AuditEventBuilder {
     }
 
     /// Set sanitized parameters
+    #[must_use]
     pub fn params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Set error message
+    #[must_use]
     pub fn error<S: Into<String>>(mut self, error: S) -> Self {
         self.error = Some(error.into());
         self
     }
 
     /// Build the audit event
+    ///
+    /// # Panics
+    /// Panics if `event_type` or `result` were not set
+    #[must_use]
+    #[allow(clippy::panic)]
     pub fn build(self) -> AuditEvent {
-        let event_type = self.event_type.expect("event_type is required");
-        let result = self.result.expect("result is required");
+        let event_type = self
+            .event_type
+            .unwrap_or_else(|| panic!("event_type is required for AuditEvent"));
+        let result = self
+            .result
+            .unwrap_or_else(|| panic!("result is required for AuditEvent"));
 
         // Determine default severity based on result
         let severity = self.severity.unwrap_or(match result {
@@ -257,7 +280,7 @@ impl AuditEventBuilder {
     }
 }
 
-/// Custom serialization for SystemTime to include nanosecond precision
+/// Custom serialization for `SystemTime` to include nanosecond precision
 mod system_time_format {
     use serde::{Deserialize, Deserializer, Serializer};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -269,16 +292,19 @@ mod system_time_format {
         let duration = time
             .duration_since(UNIX_EPOCH)
             .map_err(serde::ser::Error::custom)?;
+        #[allow(clippy::arithmetic_side_effects)] // Nanosecond calculation for timestamp
         let nanos = duration.as_secs() * 1_000_000_000 + u64::from(duration.subsec_nanos());
         serializer.serialize_u64(nanos)
     }
 
+    #[allow(clippy::arithmetic_side_effects, clippy::as_conversions)] // Timestamp serialization math
     pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
     where
         D: Deserializer<'de>,
     {
         let nanos = u64::deserialize(deserializer)?;
         let secs = nanos / 1_000_000_000;
+        // Safe: modulo operation ensures value < 1_000_000_000, fits in u32
         let subsec_nanos = (nanos % 1_000_000_000) as u32;
         Ok(UNIX_EPOCH + std::time::Duration::new(secs, subsec_nanos))
     }

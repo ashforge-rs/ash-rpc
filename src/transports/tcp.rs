@@ -30,6 +30,7 @@ impl TcpServerBuilder {
         }
     }
 
+    #[must_use]
     pub fn processor<P>(mut self, processor: P) -> Self
     where
         P: MessageProcessor + Send + Sync + 'static,
@@ -38,26 +39,34 @@ impl TcpServerBuilder {
         self
     }
 
+    #[must_use]
     pub fn security_config(mut self, config: SecurityConfig) -> Self {
         self.security_config = config;
         self
     }
 
+    #[must_use]
     pub fn max_connections(mut self, max: usize) -> Self {
         self.security_config.max_connections = max;
         self
     }
 
+    #[must_use]
     pub fn max_request_size(mut self, size: usize) -> Self {
         self.security_config.max_request_size = size;
         self
     }
 
+    #[must_use]
     pub fn request_timeout(mut self, timeout: std::time::Duration) -> Self {
         self.security_config.request_timeout = timeout;
         self
     }
 
+    /// Build the TCP server
+    ///
+    /// # Errors
+    /// Returns error if processor is not set
     pub fn build(self) -> Result<TcpServer, std::io::Error> {
         let processor = self.processor.ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "Processor not set")
@@ -84,11 +93,16 @@ impl TcpServer {
         TcpServerBuilder::new(addr)
     }
 
+    /// Run the TCP server (blocking)
+    ///
+    /// # Errors
+    /// Returns error if runtime creation or server startup fails
     pub fn run(&self) -> Result<(), std::io::Error> {
         let rt = Runtime::new()?;
         rt.block_on(self.run_async())
     }
 
+    #[allow(clippy::cognitive_complexity, clippy::infinite_loop)]
     async fn run_async(&self) -> Result<(), std::io::Error> {
         let listener = TcpListener::bind(&self.addr).await?;
         tracing::info!(
@@ -140,27 +154,31 @@ impl TcpServer {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 async fn handle_client(
     stream: TcpStream,
     processor: Arc<dyn MessageProcessor + Send + Sync>,
     security_config: SecurityConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (reader, mut writer) = stream.into_split();
-    let mut reader = BufReader::new(reader);
+    let mut buf_reader = BufReader::new(reader);
     let mut line = String::new();
 
     loop {
         line.clear();
 
         // Apply request timeout
-        let bytes_read =
-            match timeout(security_config.request_timeout, reader.read_line(&mut line)).await {
-                Ok(result) => result?,
-                Err(_) => {
-                    tracing::warn!("request timeout exceeded");
-                    return Err("request timeout".into());
-                }
-            };
+        let bytes_read = if let Ok(result) = timeout(
+            security_config.request_timeout,
+            buf_reader.read_line(&mut line),
+        )
+        .await
+        {
+            result?
+        } else {
+            tracing::warn!("request timeout exceeded");
+            return Err("request timeout".into());
+        };
 
         // Check max request size
         if security_config.max_request_size > 0 && line.len() > security_config.max_request_size {
@@ -172,14 +190,14 @@ async fn handle_client(
             let error_response = crate::Response::error(
                 crate::ErrorBuilder::new(
                     crate::error_codes::INVALID_REQUEST,
-                    "Request size limit exceeded".to_string(),
+                    "Request size limit exceeded".to_owned(),
                 )
                 .build(),
                 None,
             );
             if let Ok(json) = serde_json::to_string(&error_response) {
-                let _ = writer.write_all(json.as_bytes()).await;
-                let _ = writer.write_all(b"\n").await;
+                drop(writer.write_all(json.as_bytes()).await);
+                drop(writer.write_all(b"\n").await);
             }
             return Err("request size limit exceeded".into());
         }
@@ -188,12 +206,12 @@ async fn handle_client(
             break;
         }
 
-        let line = line.trim();
-        if line.is_empty() {
+        let line_trimmed = line.trim();
+        if line_trimmed.is_empty() {
             continue;
         }
 
-        match serde_json::from_str::<Message>(line) {
+        match serde_json::from_str::<Message>(line_trimmed) {
             Ok(message) => {
                 let response_opt = processor.process_message(message).await;
                 if let Some(response) = response_opt {

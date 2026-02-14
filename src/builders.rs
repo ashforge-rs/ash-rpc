@@ -1,6 +1,6 @@
 //! Builder patterns for JSON-RPC types.
 
-use crate::types::*;
+use crate::types::{Error, Notification, Request, RequestId, Response};
 
 /// Builder for JSON-RPC requests
 pub struct RequestBuilder {
@@ -22,27 +22,31 @@ impl RequestBuilder {
     }
 
     /// Set request parameters
+    #[must_use]
     pub fn params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Set request ID
+    #[must_use]
     pub fn id(mut self, id: RequestId) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Set correlation ID
+    #[must_use]
     pub fn correlation_id(mut self, correlation_id: String) -> Self {
         self.correlation_id = Some(correlation_id);
         self
     }
 
     /// Build the request
+    #[must_use]
     pub fn build(self) -> Request {
         Request {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             method: self.method,
             params: self.params,
             id: self.id,
@@ -61,6 +65,7 @@ pub struct ResponseBuilder {
 
 impl ResponseBuilder {
     /// Create a new response builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             result: None,
@@ -71,31 +76,36 @@ impl ResponseBuilder {
     }
 
     /// Set successful result
+    #[must_use]
     pub fn success(mut self, result: serde_json::Value) -> Self {
         self.result = Some(result);
         self
     }
 
     /// Set error
+    #[must_use]
     pub fn error(mut self, error: Error) -> Self {
         self.error = Some(error);
         self
     }
 
     /// Set response ID
+    #[must_use]
     pub fn id(mut self, id: Option<RequestId>) -> Self {
         self.id = id;
         self
     }
     /// Set correlation ID
+    #[must_use]
     pub fn correlation_id(mut self, correlation_id: Option<String>) -> Self {
         self.correlation_id = correlation_id;
         self
     }
     /// Build the response
+    #[must_use]
     pub fn build(self) -> Response {
         Response {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: self.result,
             error: self.error,
             id: self.id,
@@ -120,15 +130,17 @@ impl NotificationBuilder {
     }
 
     /// Set notification parameters
+    #[must_use]
     pub fn params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Build the notification
+    #[must_use]
     pub fn build(self) -> Notification {
         Notification {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             method: self.method,
             params: self.params,
         }
@@ -153,12 +165,14 @@ impl ErrorBuilder {
     }
 
     /// Add additional error data
+    #[must_use]
     pub fn data(mut self, data: serde_json::Value) -> Self {
         self.data = Some(data);
         self
     }
 
     /// Build the error
+    #[must_use]
     pub fn build(self) -> Error {
         Error {
             code: self.code,
@@ -186,6 +200,7 @@ pub struct SecurityConfigBuilder {
 #[cfg(any(feature = "tcp", feature = "tcp-stream", feature = "tcp-stream-tls"))]
 impl SecurityConfigBuilder {
     /// Create a new security config builder with secure defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             max_connections: 1000,
@@ -202,6 +217,7 @@ impl SecurityConfigBuilder {
     ///
     /// # Panics
     /// Panics if max is 0 or greater than 100000
+    #[must_use]
     pub fn max_connections(mut self, max: usize) -> Self {
         assert!(
             max > 0 && max <= 100_000,
@@ -218,6 +234,7 @@ impl SecurityConfigBuilder {
     ///
     /// # Panics
     /// Panics if size is less than 1024 bytes or greater than 100MB
+    #[must_use]
     pub fn max_request_size(mut self, size: usize) -> Self {
         assert!(
             (1024..=100 * 1024 * 1024).contains(&size),
@@ -234,6 +251,7 @@ impl SecurityConfigBuilder {
     ///
     /// # Panics
     /// Panics if timeout is less than 1 second or greater than 5 minutes
+    #[must_use]
     pub fn request_timeout(mut self, timeout: std::time::Duration) -> Self {
         assert!(
             (1..=300).contains(&timeout.as_secs()),
@@ -250,6 +268,7 @@ impl SecurityConfigBuilder {
     ///
     /// # Panics
     /// Panics if timeout is less than 10 seconds or greater than 1 hour
+    #[must_use]
     pub fn idle_timeout(mut self, timeout: std::time::Duration) -> Self {
         assert!(
             (10..=3600).contains(&timeout.as_secs()),
@@ -688,6 +707,7 @@ impl StreamResponseBuilder {
     }
 
     /// Set successful result
+    #[must_use]
     pub fn success(mut self, result: serde_json::Value) -> Self {
         self.result = Some(result);
         self.stream_status = Some(crate::streaming::StreamStatus::Active);
@@ -695,6 +715,7 @@ impl StreamResponseBuilder {
     }
 
     /// Set error
+    #[must_use]
     pub fn error(mut self, error: Error) -> Self {
         self.error = Some(error);
         self.stream_status = Some(crate::streaming::StreamStatus::Error);
@@ -702,15 +723,17 @@ impl StreamResponseBuilder {
     }
 
     /// Set stream status
+    #[must_use]
     pub fn status(mut self, status: crate::streaming::StreamStatus) -> Self {
         self.stream_status = Some(status);
         self
     }
 
     /// Build the stream response
+    #[must_use]
     pub fn build(self) -> crate::streaming::StreamResponse {
         crate::streaming::StreamResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: self.result,
             error: self.error,
             id: self.id,

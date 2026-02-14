@@ -18,13 +18,15 @@ pub struct AxumRpcBuilder {
 }
 
 impl AxumRpcBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             processor: None,
-            path: "/rpc".to_string(),
+            path: "/rpc".to_owned(),
         }
     }
 
+    #[must_use]
     pub fn processor<P>(mut self, processor: P) -> Self
     where
         P: MessageProcessor + Send + Sync + 'static,
@@ -33,11 +35,16 @@ impl AxumRpcBuilder {
         self
     }
 
+    #[must_use]
     pub fn path(mut self, path: impl Into<String>) -> Self {
         self.path = path.into();
         self
     }
 
+    /// Build the Axum RPC layer
+    ///
+    /// # Errors
+    /// Returns error if processor is not set
     pub fn build(self) -> Result<AxumRpcLayer, std::io::Error> {
         let processor = self.processor.ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "Processor not set")
@@ -56,6 +63,7 @@ pub struct AxumRpcLayer {
 }
 
 impl AxumRpcLayer {
+    #[must_use]
     pub fn builder() -> AxumRpcBuilder {
         AxumRpcBuilder::new()
     }
@@ -80,22 +88,21 @@ async fn handle_rpc(
     State(processor): State<Arc<dyn MessageProcessor + Send + Sync>>,
     Json(message): Json<Message>,
 ) -> Result<Json<Response>, (StatusCode, Json<Response>)> {
-    match processor.process_message(message).await {
-        Some(response) => Ok(Json(response)),
-        None => {
-            let error_response = ResponseBuilder::new()
-                .error(
-                    ErrorBuilder::new(
-                        error_codes::INVALID_REQUEST,
-                        "No response generated for request",
-                    )
-                    .build(),
+    if let Some(response) = processor.process_message(message).await {
+        Ok(Json(response))
+    } else {
+        let error_response = ResponseBuilder::new()
+            .error(
+                ErrorBuilder::new(
+                    error_codes::INVALID_REQUEST,
+                    "No response generated for request",
                 )
-                .id(None)
-                .build();
+                .build(),
+            )
+            .id(None)
+            .build();
 
-            Err((StatusCode::OK, Json(error_response)))
-        }
+        Err((StatusCode::OK, Json(error_response)))
     }
 }
 

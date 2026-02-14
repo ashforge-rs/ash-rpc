@@ -22,7 +22,7 @@ impl Request {
     /// Create a new JSON-RPC request
     pub fn new(method: impl Into<String>) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             method: method.into(),
             params: None,
             id: None,
@@ -31,43 +31,51 @@ impl Request {
     }
 
     /// Add parameters to the request
+    #[must_use]
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
     /// Add an ID to the request
+    #[must_use]
     pub fn with_id(mut self, id: RequestId) -> Self {
         self.id = Some(id);
         self
     }
 
     /// Check if this request expects a response
+    #[must_use]
     pub fn expects_response(&self) -> bool {
         self.id.is_some()
     }
 
     /// Check if this is a notification (no response expected)
+    #[must_use]
     pub fn is_notification(&self) -> bool {
         self.id.is_none()
     }
 
     /// Get the method name
+    #[must_use]
     pub fn method(&self) -> &str {
         &self.method
     }
 
     /// Get a reference to the parameters
+    #[must_use]
     pub fn params(&self) -> Option<&serde_json::Value> {
         self.params.as_ref()
     }
 
     /// Take ownership of the parameters
+    #[must_use]
     pub fn take_params(self) -> Option<serde_json::Value> {
         self.params
     }
 
     /// Get a reference to the request ID
+    #[must_use]
     pub fn id(&self) -> Option<&RequestId> {
         self.id.as_ref()
     }
@@ -88,9 +96,10 @@ pub struct Response {
 
 impl Response {
     /// Create a successful response
+    #[must_use]
     pub fn success(result: serde_json::Value, id: Option<RequestId>) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: Some(result),
             error: None,
             id,
@@ -99,9 +108,10 @@ impl Response {
     }
 
     /// Create an error response
+    #[must_use]
     pub fn error(error: crate::Error, id: Option<RequestId>) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             result: None,
             error: Some(error),
             id,
@@ -110,36 +120,43 @@ impl Response {
     }
 
     /// Check if this is a successful response
+    #[must_use]
     pub fn is_success(&self) -> bool {
         self.error.is_none() && self.result.is_some()
     }
 
     /// Check if this is an error response
+    #[must_use]
     pub fn is_error(&self) -> bool {
         self.error.is_some()
     }
 
     /// Get a reference to the result
+    #[must_use]
     pub fn result(&self) -> Option<&serde_json::Value> {
         self.result.as_ref()
     }
 
     /// Take ownership of the result
+    #[must_use]
     pub fn take_result(self) -> Option<serde_json::Value> {
         self.result
     }
 
     /// Get error information
+    #[must_use]
     pub fn error_info(&self) -> Option<&crate::Error> {
         self.error.as_ref()
     }
 
     /// Take ownership of the error
+    #[must_use]
     pub fn take_error(self) -> Option<crate::Error> {
         self.error
     }
 
     /// Get the response ID
+    #[must_use]
     pub fn id(&self) -> Option<&RequestId> {
         self.id.as_ref()
     }
@@ -165,46 +182,56 @@ impl Error {
     }
 
     /// Add additional data to the error
+    #[must_use]
     pub fn with_data(mut self, data: serde_json::Value) -> Self {
         self.data = Some(data);
         self
     }
 
     /// Check if this is a parse error (-32700)
+    #[must_use]
     pub fn is_parse_error(&self) -> bool {
         self.code == crate::error_codes::PARSE_ERROR
     }
 
     /// Check if this is an invalid request error (-32600)
+    #[must_use]
     pub fn is_invalid_request(&self) -> bool {
         self.code == crate::error_codes::INVALID_REQUEST
     }
 
     /// Check if this is a method not found error (-32601)
+    #[must_use]
     pub fn is_method_not_found(&self) -> bool {
         self.code == crate::error_codes::METHOD_NOT_FOUND
     }
 
+    #[must_use]
     pub fn is_invalid_params(&self) -> bool {
         self.code == crate::error_codes::INVALID_PARAMS
     }
 
+    #[must_use]
     pub fn is_internal_error(&self) -> bool {
         self.code == crate::error_codes::INTERNAL_ERROR
     }
 
+    #[must_use]
     pub fn is_server_error(&self) -> bool {
         self.code >= -32099 && self.code <= -32000
     }
 
+    #[must_use]
     pub fn code(&self) -> i32 {
         self.code
     }
 
+    #[must_use]
     pub fn message(&self) -> &str {
         &self.message
     }
 
+    #[must_use]
     pub fn data(&self) -> Option<&serde_json::Value> {
         self.data.as_ref()
     }
@@ -227,6 +254,7 @@ impl Error {
     ///     }
     /// });
     /// ```
+    #[must_use]
     pub fn sanitized_with<F>(&self, transform: F) -> Self
     where
         F: FnOnce(&Self) -> Self,
@@ -234,10 +262,10 @@ impl Error {
         transform(self)
     }
 
-    /// Create a generic internal error from any std::error::Error
+    /// Create a generic internal error from any `std::error::Error`
     ///
     /// This logs the full error details server-side and returns a generic error.
-    /// Use this with sanitized_with() for custom error transformation.
+    /// Use this with `sanitized_with()` for custom error transformation.
     pub fn from_error_logged(error: &dyn std::error::Error) -> Self {
         tracing::error!(
             error = %error,
@@ -247,7 +275,7 @@ impl Error {
 
         Self {
             code: crate::error_codes::INTERNAL_ERROR,
-            message: "Internal server error".to_string(),
+            message: "Internal server error".to_owned(),
             data: None,
         }
     }
@@ -264,25 +292,29 @@ pub struct Notification {
 impl Notification {
     pub fn new(method: impl Into<String>) -> Self {
         Self {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".to_owned(),
             method: method.into(),
             params: None,
         }
     }
 
+    #[must_use]
     pub fn with_params(mut self, params: serde_json::Value) -> Self {
         self.params = Some(params);
         self
     }
 
+    #[must_use]
     pub fn method(&self) -> &str {
         &self.method
     }
 
+    #[must_use]
     pub fn params(&self) -> Option<&serde_json::Value> {
         self.params.as_ref()
     }
 
+    #[must_use]
     pub fn take_params(self) -> Option<serde_json::Value> {
         self.params
     }
@@ -297,18 +329,22 @@ pub enum Message {
 }
 
 impl Message {
+    #[must_use]
     pub fn is_request(&self) -> bool {
         matches!(self, Message::Request(_))
     }
 
+    #[must_use]
     pub fn is_response(&self) -> bool {
         matches!(self, Message::Response(_))
     }
 
+    #[must_use]
     pub fn is_notification(&self) -> bool {
         matches!(self, Message::Notification(_))
     }
 
+    #[must_use]
     pub fn as_request(&self) -> Option<&Request> {
         match self {
             Message::Request(req) => Some(req),
@@ -316,6 +352,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn as_response(&self) -> Option<&Response> {
         match self {
             Message::Response(resp) => Some(resp),
@@ -323,6 +360,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn as_notification(&self) -> Option<&Notification> {
         match self {
             Message::Notification(notif) => Some(notif),
@@ -330,6 +368,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn into_request(self) -> Option<Request> {
         match self {
             Message::Request(req) => Some(req),
@@ -337,6 +376,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn into_response(self) -> Option<Response> {
         match self {
             Message::Response(resp) => Some(resp),
@@ -344,6 +384,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn into_notification(self) -> Option<Notification> {
         match self {
             Message::Notification(notif) => Some(notif),
@@ -351,6 +392,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn method(&self) -> Option<&str> {
         match self {
             Message::Request(req) => Some(&req.method),
@@ -359,6 +401,7 @@ impl Message {
         }
     }
 
+    #[must_use]
     pub fn id(&self) -> Option<&RequestId> {
         match self {
             Message::Request(req) => req.id.as_ref(),

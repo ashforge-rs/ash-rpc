@@ -91,23 +91,25 @@ impl MessageProcessor for ObservableProcessor {
             metrics.record_request(
                 method,
                 duration,
-                response.as_ref().map(|r| r.is_success()).unwrap_or(true),
+                response
+                    .as_ref()
+                    .is_none_or(super::types::Response::is_success),
             );
         }
 
         #[cfg(feature = "opentelemetry")]
         if let Some(mut guard) = span_guard
-            && let Some(response) = &response
-            && !response.is_success()
+            && let Some(resp) = &response
+            && !resp.is_success()
         {
             guard.record_error();
         }
 
         #[cfg(feature = "logging")]
         if let Some(logger) = &self.logger
-            && let Some(response) = &response
+            && let Some(resp) = &response
         {
-            if response.is_success() {
+            if resp.is_success() {
                 logger.debug("Request succeeded", &[]);
             } else {
                 logger.warn("Request failed", &[]);
@@ -136,6 +138,7 @@ pub struct ObservabilityBuilder {
 impl ObservabilityBuilder {
     /// Add Prometheus metrics collection
     #[cfg(feature = "prometheus")]
+    #[must_use]
     pub fn with_metrics(mut self, metrics: Arc<prometheus::PrometheusMetrics>) -> Self {
         self.metrics = Some(metrics);
         self
@@ -143,6 +146,7 @@ impl ObservabilityBuilder {
 
     /// Add OpenTelemetry tracing
     #[cfg(feature = "opentelemetry")]
+    #[must_use]
     pub fn with_tracing(mut self, tracer: Arc<tracing::TracingProcessor>) -> Self {
         self.tracer = Some(tracer);
         self
@@ -150,12 +154,14 @@ impl ObservabilityBuilder {
 
     /// Add structured logging
     #[cfg(feature = "logging")]
+    #[must_use]
     pub fn with_logger(mut self, logger: Arc<dyn Logger>) -> Self {
         self.logger = Some(logger);
         self
     }
 
     /// Build the observable processor
+    #[must_use]
     pub fn build(self) -> ObservableProcessor {
         ObservableProcessor {
             inner: self.processor,

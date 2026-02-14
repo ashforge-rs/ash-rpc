@@ -95,7 +95,8 @@ impl PatternTransform for CaseInsensitivePattern {
         let input_lower = input.to_lowercase();
 
         if let Some(pos) = input_lower.find(&pattern_lower) {
-            let mut result = input.to_string();
+            let mut result = input.to_owned();
+            #[allow(clippy::arithmetic_side_effects)]
             result.replace_range(pos..pos + self.pattern.len(), &self.replacement);
 
             // Recursively handle multiple occurrences
@@ -104,7 +105,7 @@ impl PatternTransform for CaseInsensitivePattern {
             }
             result
         } else {
-            input.to_string()
+            input.to_owned()
         }
     }
 }
@@ -115,12 +116,14 @@ pub struct CompositeTransform {
 }
 
 impl CompositeTransform {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             transforms: Vec::new(),
         }
     }
 
+    #[must_use]
     pub fn add_transform<T: PatternTransform + Send + Sync + 'static>(
         mut self,
         transform: T,
@@ -140,7 +143,7 @@ impl PatternTransform for CompositeTransform {
     fn apply(&self, input: &str) -> String {
         self.transforms
             .iter()
-            .fold(input.to_string(), |acc, transform| transform.apply(&acc))
+            .fold(input.to_owned(), |acc, transform| transform.apply(&acc))
     }
 }
 

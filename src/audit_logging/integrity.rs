@@ -33,6 +33,7 @@ pub struct SequenceIntegrity {
 
 impl SequenceIntegrity {
     /// Create a new sequence integrity checker starting at sequence 0
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sequence: AtomicU64::new(0),
@@ -40,6 +41,7 @@ impl SequenceIntegrity {
     }
 
     /// Create a new sequence integrity checker starting at a specific sequence number
+    #[must_use]
     pub fn with_start(start: u64) -> Self {
         Self {
             sequence: AtomicU64::new(start),
@@ -81,6 +83,7 @@ pub struct ChecksumIntegrity;
 
 impl ChecksumIntegrity {
     /// Create a new checksum integrity checker
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -156,16 +159,18 @@ pub struct CombinedIntegrity {
 
 impl CombinedIntegrity {
     /// Create a new combined integrity checker
+    #[must_use]
     pub fn new(mechanisms: Vec<Box<dyn AuditIntegrity>>) -> Self {
         Self { mechanisms }
     }
 
     /// Create a new combined integrity checker from Arc-wrapped mechanisms
+    #[must_use]
     pub fn from_arcs(mechanisms: Vec<std::sync::Arc<dyn AuditIntegrity>>) -> Self {
         Self {
             mechanisms: mechanisms
                 .into_iter()
-                .map(|m| Box::new(ArcIntegrityWrapper(m)) as Box<dyn AuditIntegrity>)
+                .map(|m| -> Box<dyn AuditIntegrity> { Box::new(ArcIntegrityWrapper(m)) })
                 .collect(),
         }
     }
