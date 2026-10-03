@@ -9,10 +9,10 @@ use ::axum::{
     routing::{get, post},
     Router,
 };
-use opentelemetry::global;
-use opentelemetry_sdk::trace::TracerProvider;
-use opentelemetry_sdk::Resource;
-use opentelemetry_otlp::WithExportConfig;
+use ::opentelemetry::global;
+use ::opentelemetry_otlp::WithExportConfig;
+use ::opentelemetry_sdk::trace::SdkTracerProvider;
+use ::opentelemetry_sdk::Resource;
 #[cfg(target_os = "linux")]
 use prometheus::process_collector::ProcessCollector;
 use std::sync::Arc;
@@ -131,25 +131,23 @@ async fn main() {
     
     logger.info("Initializing OpenTelemetry tracer", &[("endpoint", &otlp_endpoint.as_str())]);
     
-    // Create OTLP exporter using the new API
-    let exporter = opentelemetry_otlp::SpanExporter::new(
-        opentelemetry_otlp::TonicExporterBuilder::default()
-            .with_endpoint(otlp_endpoint)
-            .build_span_exporter()
-            .expect("Failed to create OTLP exporter")
-    );
-    
+    // Create OTLP exporter over gRPC
+    let exporter = ::opentelemetry_otlp::SpanExporter::builder()
+        .with_tonic()
+        .with_endpoint(otlp_endpoint)
+        .build()
+        .expect("Failed to create OTLP exporter");
+
     // Create tracer provider with batch processor
-    let tracer_provider = TracerProvider::builder()
-        .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
-        .with_config(
-            opentelemetry_sdk::trace::Config::default()
-                .with_resource(Resource::new(vec![
-                    opentelemetry::KeyValue::new("service.name", "ash-rpc-server"),
-                ]))
+    let tracer_provider = SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(
+            Resource::builder()
+                .with_service_name("ash-rpc-server")
+                .build(),
         )
         .build();
-    
+
     global::set_tracer_provider(tracer_provider);
     logger.info("OpenTelemetry tracer initialized", &[]);
 
