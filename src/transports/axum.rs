@@ -84,6 +84,7 @@ where
         .with_state(Arc::new(processor))
 }
 
+#[allow(clippy::result_large_err)] // Error variant is the JSON-RPC response body itself
 async fn handle_rpc(
     State(processor): State<Arc<dyn MessageProcessor + Send + Sync>>,
     Json(message): Json<Message>,
